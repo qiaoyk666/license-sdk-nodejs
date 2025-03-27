@@ -1,0 +1,26 @@
+{
+  "name": "license-sdk-nodejs",
+  "version": "1.0.5",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "release": "tsc && npm publish"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.8.4",
+    "crypto-js": "^4.2.0",
+    "license-sdk-nodejs": "file:",
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/node": "^22.13.13",
+    "@types/ws": "^8.18.0"
+  }
+}
