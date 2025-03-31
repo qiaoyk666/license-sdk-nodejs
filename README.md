@@ -25,7 +25,7 @@ const modules = client.getModules()
 console.log('modules: ', modules)
 
 //  获取指定key的权限树
-module = client.getModule('10002.10002')
+const module = client.getModule('10002.10002')
 console.log("module: ", module)
 
 //  校验指定key是否有权限
