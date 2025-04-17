@@ -1,4 +1,4 @@
-import { Client } from "."
+import { Client } from "./index"
 
 async function test() {
     // 初始化sdk客户端
@@ -30,6 +30,9 @@ async function test() {
     } else {
         console.log(`key: ${key} has no permission`)
     }
+
+    const days = client.getRemainingDays()
+    console.log('days:', days)
 }
 
 test()

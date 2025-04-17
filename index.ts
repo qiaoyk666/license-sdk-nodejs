@@ -7,8 +7,8 @@ const WebSocket = require('ws')
 type Module = {
     key: string;
     name: string;
-    issuedTime: string
-    expireTime: string
+    issuedTime: number
+    expireTime: number
     extra: string
     childFuncs: any
 }
@@ -164,6 +164,10 @@ export class Client {
             return false;
         }
         return true;
+    }
+
+    getRemainingDays() :number {
+        return Math.ceil((this.module!.expireTime - new Date().getTime()/1000) / 3600 / 24)
     }
 }
 
