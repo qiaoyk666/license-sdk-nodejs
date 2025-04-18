@@ -13,15 +13,30 @@ type Module = {
     childFuncs: any
 }
 
+export enum EventType {
+    LicenseChange = "license_change",
+    ConnectionError = "connection_error",
+    LicenseExpiring = "license_expiring"
+}
+
+export enum WsMsgType {
+    WsMsgTypePermissionTree = 1,
+    WsMsgTypeExpireWarning = 2
+}
+
 export class Client {
     endPoint: string;
     prodKey: string;
     publicKey = '';
     module?: Module;
     _public_key = '9703919fcd22d32a13bb00fba33a2dd0d35746a597f7c5a4843c567c3482c204';
+    eventCallbacks: Map<EventType, any[]> = new Map()
     constructor(endPoint: string, prodKey: string) {
         this.endPoint = endPoint;
         this.prodKey = prodKey;
+        this.eventCallbacks.set(EventType.ConnectionError, [])
+        this.eventCallbacks.set(EventType.LicenseChange, [])
+        this.eventCallbacks.set(EventType.LicenseExpiring, [])
     }
 
     /**
@@ -82,7 +97,24 @@ export class Client {
 
         ws.on('message', (data: any) => {
             console.log(`received from websocket server data: ${data}`)
-            this.module = this.verifyModuleMsg(JSON.parse(data))
+            const dataObj = JSON.parse(data)
+            switch(dataObj.msgType){
+                case WsMsgType.WsMsgTypePermissionTree:
+                    this.module = this.verifyModuleMsg(dataObj)
+                    this.emit(EventType.LicenseChange, this.module)
+                    break;
+                case WsMsgType.WsMsgTypeExpireWarning:
+
+                    // 数据（必须是Uint8Array或者Buffer格式）
+                    const message  = Buffer.from(dataObj.msg, 'base64');
+                    const messageObj = JSON.parse(message.toString('utf8'))
+                    this.emit(EventType.LicenseExpiring, messageObj)
+                    break;
+
+            }
+               
+
+            
         })
 
         ws.on('close', () => {
@@ -92,6 +124,17 @@ export class Client {
         ws.on('error', (error: any) => {
             console.error(`Websocket Error: ${error}`)
         })
+    }
+
+    private emit(event: EventType, data: any) {
+        const callbacks = this.eventCallbacks.get(event)
+        for (const callback of callbacks!) {
+            callback(data)
+        }
+    }
+
+    public on(event: EventType, callback: any) {
+        this.eventCallbacks.get(event)!.push(callback)
     }
 
     private verifyModuleMsg(modulesResp: { sign: string; msg: string; }) {

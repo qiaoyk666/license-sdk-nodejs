@@ -1,4 +1,4 @@
-import { Client } from "./index"
+import { Client, EventType } from "./index"
 
 async function test() {
     // 初始化sdk客户端
@@ -33,6 +33,27 @@ async function test() {
 
     const days = client.getRemainingDays()
     console.log('days:', days)
+
+    function license_change_callback(data: any) {
+        console.log('license_change_callback data:', data)
+    }
+
+    function license_expiring_callback(data: any) {
+        console.log('license_expiring_callback data:', data) // { day: 179 }
+    }
+
+    function connection_error_callback(data: any){
+        console.log("Error connection: ", data)
+    }
+
+    // 监听证书变化事件
+    client.on(EventType.LicenseChange, license_change_callback)
+
+    // 监听证书即将过期事件
+    client.on(EventType.LicenseExpiring, license_expiring_callback) 
+
+    // 监听ws连接异常
+    client.on(EventType.ConnectionError, connection_error_callback)
 }
 
 test()
