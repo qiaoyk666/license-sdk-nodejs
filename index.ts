@@ -112,9 +112,6 @@ export class Client {
                     break;
 
             }
-               
-
-            
         })
 
         ws.on('close', () => {
