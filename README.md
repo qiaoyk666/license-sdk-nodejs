@@ -37,17 +37,21 @@ if (isOk) {
     console.log(`key: ${key} has no permission`)
 }
 
+// 证书剩余有效期天数
 const days = client.getRemainingDays()
-console.log('days:', days)
+console.log('证书剩余有效期天数:', days)
 
+// 证书变化回调函数
 function license_change_callback(data: any) {
     console.log('license_change_callback data:', data)
 }
 
+// 证书将近过期回调函数
 function license_expiring_callback(data: any) {
     console.log('license_expiring_callback data:', data) // { day: 179 }
 }
 
+// websocket连接异常回调函数
 function connection_error_callback(data: any){
     console.log("Error connection: ", data)
 }
