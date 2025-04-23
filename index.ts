@@ -106,8 +106,11 @@ export class Client {
                 case WsMsgType.WsMsgTypeExpireWarning:
 
                     // 数据（必须是Uint8Array或者Buffer格式）
-                    const message  = Buffer.from(dataObj.msg, 'base64');
-                    const messageObj = JSON.parse(message.toString('utf8'))
+                    // const message  = Buffer.from(dataObj.msg, 'base64');
+                    const message = this.base64ToUint8Array(dataObj.msg)
+                    const decoder = new TextDecoder();
+                    const decodedString = decoder.decode(message);
+                    const messageObj = JSON.parse(decodedString)
                     this.emit(EventType.LicenseExpiring, messageObj)
                     break;
 
@@ -139,23 +142,64 @@ export class Client {
     }
 
     private verifySign(key: string, sign: string, msg: string) {
-        // 公钥（必须是Uint8Array或者Buffer格式）
-        const publicKey = Buffer.from(key, 'hex');
+        // // 公钥（必须是Uint8Array或者Buffer格式）
+        // const publicKey = Buffer.from(key, 'hex');
         
-        // 签名（必须是Uint8Array或者Buffer格式）
-        const signature = Buffer.from(sign, 'base64');
+        // // 签名（必须是Uint8Array或者Buffer格式）
+        // const signature = Buffer.from(sign, 'base64');
         
-        // 数据（必须是Uint8Array或者Buffer格式）
-        const message  = Buffer.from(msg, 'base64');
+        // // 数据（必须是Uint8Array或者Buffer格式）
+        // const message  = Buffer.from(msg, 'base64');
+         // 公钥（必须是Uint8Array或者Buffer格式）
+        //  const publicKey = Buffer.from(key, 'hex');
+         const publicKey = this.hexStringToByteArray(key)
+        
+         // 签名（必须是Uint8Array或者Buffer格式）
+         const signature = this.base64ToUint8Array(sign);
+         
+         // 数据（必须是Uint8Array或者Buffer格式）
+         const message  = this.base64ToUint8Array(msg);
         const isValid = nacl.sign.detached.verify(message, signature, publicKey)
         if (isValid) {
             console.log('signature is correct!')
-            return JSON.parse(message.toString('utf8'))
+            // return JSON.parse(message.toString('utf8'))
+            const decoder = new TextDecoder();
+            const decodedString = decoder.decode(message);
+            return JSON.parse(decodedString)
         } else {
             const msg = 'signature is bad!'
             console.log(msg)
             throw new Error(msg)
         }
+    }
+
+    private base64ToUint8Array(base64: string) {
+        // 去掉base64字符串中的空格、换行符等
+        base64 = base64.replace(/[\t\n\f\r ]+/g, '');
+        
+        // 使用atob函数进行解码，得到UTF-8编码的字符串
+        let binaryString = atob(base64);
+        
+        // 创建一个空的Uint8Array，长度为解码后的字符串长度
+        let len = binaryString.length;
+        let bytes = new Uint8Array(len);
+        
+        // 将解码后的字符串的每个字符的ASCII码值赋给Uint8Array的对应位置
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        return bytes;
+    }
+
+    
+    private hexStringToByteArray(hexString: string) {
+        const byteArray = [];
+        for (let i = 0; i < hexString.length; i += 2) {
+            // 将每两个字符解析为一个十六进制数，并将其转换为十进制数添加到字节数组中
+            byteArray.push(parseInt(hexString.substring(i, i+2), 16));
+        }
+        return new Uint8Array(byteArray);
     }
 
     private aes_ECB_decrypt(data: string, secretKey: string) {
