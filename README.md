@@ -10,7 +10,7 @@ npm i license-sdk-nodejs
 import { Client } from 'license-sdk-nodejs'
 
 // 初始化sdk客户端
-const client = new Client('localhost:18080', '10002')
+const client = new Client('http://localhost:18080', '10002')
 const initRes = await client.init()
 
 if (initRes!.result === false) {
