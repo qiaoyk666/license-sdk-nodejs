@@ -51,6 +51,11 @@ function license_expiring_callback(data: any) {
     console.log('license_expiring_callback data:', data) // { day: 179 }
 }
 
+// 吊销证书
+function license_revoke_callback(data: any){
+    console.log("license_revoke_callback data: ", data)
+}
+
 // websocket连接异常回调函数
 function connection_error_callback(data: any){
     console.log("Error connection: ", data)
@@ -61,6 +66,9 @@ client.on(EventType.LicenseChange, license_change_callback)
 
 // 监听证书即将过期事件
 client.on(EventType.LicenseExpiring, license_expiring_callback) 
+
+// 监听吊销证书事件
+client.on(EventType.LicenseRevoke, license_revoke_callback)
 
 // 监听ws连接异常
 client.on(EventType.ConnectionError, connection_error_callback)

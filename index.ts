@@ -16,12 +16,14 @@ type Module = {
 export enum EventType {
     LicenseChange = "license_change",
     ConnectionError = "connection_error",
-    LicenseExpiring = "license_expiring"
+    LicenseExpiring = "license_expiring",
+    LicenseRevoke = "license_revoke"
 }
 
 export enum WsMsgType {
     WsMsgTypePermissionTree = 1,
-    WsMsgTypeExpireWarning = 2
+    WsMsgTypeExpireWarning = 2,
+    WsMsgTypeRevokeLicense = 3
 }
 
 export class Client {
@@ -37,6 +39,7 @@ export class Client {
         this.eventCallbacks.set(EventType.ConnectionError, [])
         this.eventCallbacks.set(EventType.LicenseChange, [])
         this.eventCallbacks.set(EventType.LicenseExpiring, [])
+        this.eventCallbacks.set(EventType.LicenseRevoke, [])
     }
 
     /**
@@ -46,7 +49,7 @@ export class Client {
 
         const initRes = new InitRes(false, '')
         // 1. 获取公钥
-        const res = await this.httpRequest(`http://${this.endPoint}/pubkey?prodkey=${this.prodKey}`)
+        const res = await this.httpRequest(`${this.endPoint}/pubkey?prodkey=${this.prodKey}`)
         if (res.data.code != 200) {
             initRes.msg = res.data.msg;
             return initRes;
@@ -62,7 +65,7 @@ export class Client {
         this.publicKey = decryptResObj.publicKey;
 
         // 3. 获取权限树
-        const modulesResp = await this.httpRequest(`http://${this.endPoint}/modules?prodkey=${this.prodKey}`);
+        const modulesResp = await this.httpRequest(`${this.endPoint}/modules?prodkey=${this.prodKey}`);
         if (modulesResp.data.code !== 200) {
             initRes.msg = `failed to get modules : ${modulesResp.data.msg}`;
             return initRes;
@@ -87,7 +90,13 @@ export class Client {
     }
 
     private handleWebSocket() {
-        const ws = new WebSocket(`ws://${this.endPoint}/ws?prodkey=${this.prodKey}`)
+        let url = this.endPoint
+        if (this.endPoint.includes('https://')) {
+            url = this.endPoint.split('https://')[1]
+        } else if (this.endPoint.includes('http://')) {
+            url = this.endPoint.split('http://')[1]
+        }
+        const ws = new WebSocket(`ws://${url}/ws?prodkey=${this.prodKey}`)
         // 连接打开时触发
         ws.on('open', function open() {
             console.log('Connected to the WebSocket server')
@@ -114,6 +123,13 @@ export class Client {
                     this.emit(EventType.LicenseExpiring, messageObj)
                     break;
 
+                case WsMsgType.WsMsgTypeRevokeLicense:
+                    const msgArray = this.base64ToUint8Array(dataObj.msg)
+                    const d = new TextDecoder();
+                    const decodedStr = d.decode(msgArray);
+                    const msgObj = JSON.parse(decodedStr)
+                    this.emit(EventType.LicenseRevoke, msgObj)
+                    break;
             }
         })
 

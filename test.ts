@@ -2,7 +2,7 @@ import { Client, EventType } from "./index"
 
 async function test() {
     // 初始化sdk客户端
-    const client = new Client('localhost:18080', '10002')
+    const client = new Client('http://localhost:18080', '10002')
     const initRes = await client.init()
 
     console.log('initRes===', initRes)
@@ -42,15 +42,24 @@ async function test() {
         console.log('license_expiring_callback data:', data) // { day: 179 }
     }
 
+    // 吊销证书
+    function license_revoke_callback(data: any){
+        console.log("license_revoke_callback data: ", data)
+    }
+
     function connection_error_callback(data: any){
         console.log("Error connection: ", data)
     }
+
 
     // 监听证书变化事件
     client.on(EventType.LicenseChange, license_change_callback)
 
     // 监听证书即将过期事件
     client.on(EventType.LicenseExpiring, license_expiring_callback) 
+
+    // 监听吊销证书事件
+    client.on(EventType.LicenseRevoke, license_revoke_callback)
 
     // 监听ws连接异常
     client.on(EventType.ConnectionError, connection_error_callback)
