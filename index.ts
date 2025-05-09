@@ -4,6 +4,9 @@ import CryptoJS from 'crypto-js'
 import * as nacl from 'tweetnacl'
 const WebSocket = require('ws')
 
+
+const https = require('https')
+
 type Module = {
     key: string;
     name: string;
@@ -23,7 +26,8 @@ export enum EventType {
 export enum WsMsgType {
     WsMsgTypePermissionTree = 1,
     WsMsgTypeExpireWarning = 2,
-    WsMsgTypeRevokeLicense = 3
+    WsMsgTypeRevokeLicense = 3,
+    MsgTypeHeartbeat = 4
 }
 
 export class Client {
@@ -31,11 +35,18 @@ export class Client {
     prodKey: string;
     publicKey = '';
     module?: Module;
-    _public_key = '9703919fcd22d32a13bb00fba33a2dd0d35746a597f7c5a4843c567c3482c204';
     eventCallbacks: Map<EventType, any[]> = new Map()
-    constructor(endPoint: string, prodKey: string) {
+    heartbeatInterval = 15 * 1000; // 15秒
+    maxReconnectAttempts: number = 5 // 最大重连次数
+    reconnectWaitTimeSecond: number = 3;
+    reconnectAttempt: number = 0;
+    ws: WebSocket | undefined;
+    timerId: NodeJS.Timeout | undefined = undefined;
+    secretKey: string;
+    constructor(endPoint: string, prodKey: string, secretKey: string) {
         this.endPoint = endPoint;
         this.prodKey = prodKey;
+        this.secretKey = secretKey;
         this.eventCallbacks.set(EventType.ConnectionError, [])
         this.eventCallbacks.set(EventType.LicenseChange, [])
         this.eventCallbacks.set(EventType.LicenseExpiring, [])
@@ -56,7 +67,7 @@ export class Client {
         }
 
         // 2. AES解密返回的数据
-        const decryptRes = this.aes_ECB_decrypt(res.data.data, this._public_key.substring(0, 32))
+        const decryptRes = this.aes_ECB_decrypt(res.data.data, this.secretKey.substring(0, 32))
         const decryptResObj = JSON.parse(decryptRes)
         if (decryptResObj.prodKey != this.prodKey) {
             initRes.msg = 'prodkey not match';
@@ -73,33 +84,122 @@ export class Client {
 
         try {
             this.module = this.verifyModuleMsg(modulesResp.data.data)
-            initRes.result = true
 
             // websocket监听消息
-            this.handleWebSocket()
+            await this.connectWebSocket()
+
+            // 启动心跳检测
+            this.heartbeat()
+
+            initRes.result = true
             return initRes
         } catch (error) {
-            initRes.msg = `invalid signature`
+            console.log('error', error)
+            initRes.msg = `client init error`
             return initRes
         }
 
     }
 
     private async httpRequest(url: string) {
-        return axios.get(url);
+        return axios.get(url, {httpsAgent: new https.Agent({
+            keepAlive: true,
+            rejectUnauthorized: false,
+        })})
+    }
+
+    private async connectWebSocket() {
+        if (this.ws) {
+            this.ws.close()
+            this.ws = undefined
+        }
+        const wsUrl = this.getWsUrl()
+        this.ws = new WebSocket(wsUrl, {
+            rejectUnauthorized: false
+        })
+
+        // 启动websocket监听
+        this.handleWebSocket()
+
+
     }
 
     private handleWebSocket() {
+        this.handleServerWs(this)
+    }
+
+
+    private heartbeat() {
+        this.timerId = setInterval(async () => {
+            // 构造心跳消息
+            const heartbeatMsg = {
+                msgType: WsMsgType.MsgTypeHeartbeat,
+                msg: 'ping'
+            }
+            try {
+                this.ws!.send(JSON.stringify(heartbeatMsg))
+            } catch (error) {
+                console.log('sdk ws heartbeat error: ', error)
+                // 重连
+                await this.reconnect()
+            }
+            
+        }, this.heartbeatInterval)
+    }
+
+    
+    private async delay(second: number) {
+        return new Promise(resolve => setTimeout(resolve, second * 1000))
+    }
+
+
+    private async reconnect() {
+        if (this.ws) {
+            this.ws.close()
+            this.ws = undefined
+        }
+        if (this.reconnectAttempt >this.maxReconnectAttempts) {
+            const msg = 'reconnection reached max attemps';
+            console.log(msg)
+            this.emit(EventType.ConnectionError, new Error(msg))
+            // process.exit(1)
+            return
+        }
+        this.reconnectAttempt++
+        console.log('attempting to reconnect ws times: ', this.reconnectAttempt)
+
+        // 延时
+        await this.delay(this.reconnectWaitTimeSecond)
+
+        try {
+            // 重新连接
+            await this.connectWebSocket()
+        } catch (error) {
+            console.log('connect ws err, try to reconnect')
+            // 出错后，尝试重连，直到达到设定的重连次数
+            await this.reconnect()
+        }
+    }
+
+    private getWsUrl() {
         let url = this.endPoint
+        let protocol = 'ws'
         if (this.endPoint.includes('https://')) {
             url = this.endPoint.split('https://')[1]
+            protocol = 'wss'
         } else if (this.endPoint.includes('http://')) {
             url = this.endPoint.split('http://')[1]
         }
-        const ws = new WebSocket(`ws://${url}/ws?prodkey=${this.prodKey}`)
+        return `${protocol}://${url}/ws?prodkey=${this.prodKey}`
+    }
+
+    private handleServerWs(client: Client) {
+        const ws: any = this.ws;
+
         // 连接打开时触发
         ws.on('open', function open() {
             console.log('Connected to the WebSocket server')
+            client.reconnectAttempt = 0
             // 这里可以发送消息到服务器
             ws.send('hi server')
         })
@@ -130,15 +230,25 @@ export class Client {
                     const msgObj = JSON.parse(decodedStr)
                     this.emit(EventType.LicenseRevoke, msgObj)
                     break;
+                case WsMsgType.MsgTypeHeartbeat:
+                    const msgArrayHB = this.base64ToUint8Array(dataObj.msg)
+                    const dHB = new TextDecoder();
+                    const decodedStrHB = dHB.decode(msgArrayHB);
+                    console.log('heartbeat msg: ', decodedStrHB)
+                    break;
             }
         })
-
-        ws.on('close', () => {
+       
+        ws.on('close', async () => {
             console.log('Disconnected from the websocket server')
+            clearInterval(this.timerId)
+            await this.delay(this.reconnectWaitTimeSecond)
+            await this.reconnect()
         })
 
-        ws.on('error', (error: any) => {
+        ws.on('error', async (error: any) => {
             console.error(`Websocket Error: ${error}`)
+            this.emit(EventType.ConnectionError, error)
         })
     }
 

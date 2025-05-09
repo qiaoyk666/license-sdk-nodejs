@@ -2,7 +2,7 @@ import { Client, EventType } from "./index"
 
 async function test() {
     // 初始化sdk客户端
-    const client = new Client('http://localhost:18080', '10002')
+    const client = new Client('http://localhost:18080', 'znjy000', 'your secret key')
     const initRes = await client.init()
 
     console.log('initRes===', initRes)
