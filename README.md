@@ -100,7 +100,7 @@ function license_change_callback(data: any) {
 // 证书将近过期回调函数
 function license_expiring_callback(data: any) {
     // 返回结果示例 { day: 179 }
-    console.log('license_expiring_callback data:', data) // { day: 179 }
+    console.log('license_expiring_callback data:', data)
 }
 
 // 吊销证书
