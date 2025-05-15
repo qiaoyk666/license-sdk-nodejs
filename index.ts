@@ -7,13 +7,13 @@ const WebSocket = require('ws')
 
 const https = require('https')
 
-type Module = {
+export type Module = {
     key: string;
     name: string;
     issuedTime: number
     expireTime: number
     extra: string
-    childFuncs: any
+    childFuncs: Array<Module>
 }
 
 export enum EventType {
@@ -34,7 +34,7 @@ export class Client {
     endPoint: string;
     prodKey: string;
     publicKey = '';
-    module?: Module;
+    module: Module;
     eventCallbacks: Map<EventType, any[]> = new Map()
     heartbeatInterval = 15 * 1000; // 15秒
     maxReconnectAttempts: number = 5 // 最大重连次数
@@ -47,6 +47,14 @@ export class Client {
         this.endPoint = endPoint;
         this.prodKey = prodKey;
         this.secretKey = secretKey;
+        this.module = {
+            key: '',
+            name: '',
+            issuedTime: 0,
+            expireTime: 0,
+            extra: '',
+            childFuncs: []
+        }
         this.eventCallbacks.set(EventType.ConnectionError, [])
         this.eventCallbacks.set(EventType.LicenseChange, [])
         this.eventCallbacks.set(EventType.LicenseExpiring, [])
